@@ -13,16 +13,25 @@
 // limitations under the License.
 
 import 'package:cross_device_remote_controller/firebase_options.dart';
+import 'package:cross_device_remote_controller/src/application_state.dart';
 import 'package:cross_device_remote_controller/src/player_widget.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:provider/provider.dart';
+
+import 'src/widgets.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
-  runApp(const MyMusicBoxApp());
+  runApp(
+    ChangeNotifierProvider(
+      create: (context) => ApplicationState(),
+      builder: (context, _) => const MyMusicBoxApp(),
+    ),
+  );
 }
 
 class MyMusicBoxApp extends StatelessWidget {
@@ -76,6 +85,9 @@ class _PlayerPageState extends State<PlayerPage> {
       appBar: AppBar(
         title: const Text('Music Box'),
         backgroundColor: Colors.deepPurple.shade400,
+        actions: const <Widget>[
+          AppBarMenuButton(),
+        ],
       ),
       body: Container(
         padding: const EdgeInsets.all(16.0),
