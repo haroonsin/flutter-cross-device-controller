@@ -1,11 +1,25 @@
+import 'dart:io';
+
+import 'package:firebase_app_installations/firebase_app_installations.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_core/firebase_core.dart';
-import 'package:flutter/material.dart';
+import 'package:firebase_database/firebase_database.dart';
+import 'package:flutter/foundation.dart';
 
 import '../firebase_options.dart';
 import 'authentication.dart';
 
+// Interface to be implemented by PlayerWidget
+typedef OnLeadDeviceChangeCallback = void Function(
+    Map<dynamic, dynamic> snapshot);
+
 class ApplicationState extends ChangeNotifier {
+  String? _deviceId;
+  String? _uuid;
+  bool _isLeadDevice = false;
+  String? _leadDeviceType;
+  OnLeadDeviceChangeCallback? onLeadDeviceChangeCallback;
+
   ApplicationState() {
     init();
   }
@@ -18,11 +32,30 @@ class ApplicationState extends ChangeNotifier {
     FirebaseAuth.instance.userChanges().listen((user) {
       if (user != null) {
         _loginState = ApplicationLoginState.loggedIn;
+        _uuid = user.uid;
+        _addUserDevice().then((_) => listenToLeadDeviceChange());
       } else {
         _loginState = ApplicationLoginState.loggedOut;
       }
       notifyListeners();
     });
+  }
+
+  Future<void> listenToLeadDeviceChange() async {
+    if (_uuid != null) {
+      var activeDeviceRef =
+          FirebaseDatabase.instance.ref().child('/users/$_uuid/active_device');
+      activeDeviceRef.onValue.listen((event) {
+        final activeDeviceState = event.snapshot.value as Map<dynamic, dynamic>;
+        String activeDeviceKey = activeDeviceState['id'] as String;
+        _isLeadDevice = _deviceId == activeDeviceKey;
+        _leadDeviceType = activeDeviceState['type'] as String;
+        if (!_isLeadDevice) {
+          onLeadDeviceChangeCallback?.call(activeDeviceState);
+        }
+        notifyListeners();
+      });
+    }
   }
 
   ApplicationLoginState _loginState = ApplicationLoginState.loggedOut;
@@ -91,6 +124,87 @@ class ApplicationState extends ChangeNotifier {
 
   void signOut() {
     FirebaseAuth.instance.signOut();
+  }
+
+  Future<void> _addUserDevice() async {
+    _uuid = FirebaseAuth.instance.currentUser?.uid;
+    String deviceType = _getDevicePlatform();
+    var isOfflineForDatabase = {
+      'type': deviceType,
+      'state': 'offline',
+      'last_changed': ServerValue.timestamp
+    };
+
+    var isOnlineForDatabase = {
+      'type': deviceType,
+      'state': 'online',
+      'last_changed': ServerValue.timestamp
+    };
+
+    var devicesRef =
+        FirebaseDatabase.instance.ref().child('/users/$_uuid/devices');
+    FirebaseInstallations.instance
+        .getId()
+        .then((id) => _deviceId = id)
+        .then((_) {
+      // Use the semi-persistent Firebase Installation Id to key devices
+      var deviceStatusRef = devicesRef.child('$_deviceId');
+      // RTDB Presence API
+      FirebaseDatabase.instance
+          .ref()
+          .child('.info/connected')
+          .onValue
+          .listen((data) {
+        if (data.snapshot.value == false) {
+          return;
+        }
+
+        deviceStatusRef.onDisconnect().set(isOfflineForDatabase).then((_) {
+          deviceStatusRef.set(isOnlineForDatabase);
+        });
+      });
+    });
+  }
+
+  String _getDevicePlatform() {
+    if (kIsWeb) {
+      return 'Web';
+    } else if (Platform.isIOS) {
+      return 'iOS';
+    } else if (Platform.isAndroid) {
+      return 'Android';
+    }
+    return 'Unknown';
+  }
+
+  Future<void> setLeadDevice() async {
+    if (_uuid != null && _deviceId != null) {
+      var playerRef =
+          FirebaseDatabase.instance.ref().child('/users/$_uuid/active_device');
+      await playerRef
+          .update({'id': _deviceId, 'type': _getDevicePlatform()}).then((_) {
+        _isLeadDevice = true;
+      });
+    }
+  }
+
+  Future<void> setLeadDeviceState(
+      int playerState, double sliderPosition) async {
+    if (_isLeadDevice && _uuid != null && _deviceId != null) {
+      var leadDeviceStateRef =
+          FirebaseDatabase.instance.ref().child('/users/$_uuid/active_device');
+      try {
+        var playerSnapshot = {
+          'id': _deviceId,
+          'state': playerState,
+          'type': _getDevicePlatform(),
+          'slider_position': sliderPosition
+        };
+        await leadDeviceStateRef.set(playerSnapshot);
+      } catch (e) {
+        throw Exception('updated playerState with error');
+      }
+    }
   }
 }
 

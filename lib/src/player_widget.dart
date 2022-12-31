@@ -20,6 +20,9 @@ import 'dart:math';
 import 'package:audioplayers/audioplayers.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
+
+import 'application_state.dart';
 
 class PlayerWidget extends StatefulWidget {
   final String url;
@@ -155,6 +158,9 @@ class _PlayerWidgetState extends State<PlayerWidget> {
       // Avoid a bug in web player where extra tap gesture is bound.
       return;
     }
+    Provider.of<ApplicationState>(context, listen: false)
+        .setLeadDeviceState(_playerState.index, _sliderPosition);
+
     _updateSlider(v);
   }
 
@@ -279,6 +285,9 @@ class _PlayerWidgetState extends State<PlayerWidget> {
   Future<int> _play() async {
     var result = 0;
 
+    Provider.of<ApplicationState>(context, listen: false)
+        .setLeadDeviceState(PlayerState.PLAYING.index, _sliderPosition);
+
     if (_playerState == PlayerState.PAUSED) {
       result = await _audioPlayer.resume();
       return result;
@@ -302,6 +311,8 @@ class _PlayerWidgetState extends State<PlayerWidget> {
     if (result == 1) {
       setState(() => {_playerState = PlayerState.PAUSED});
     }
+    Provider.of<ApplicationState>(context, listen: false)
+        .setLeadDeviceState(_playerState.index, _sliderPosition);
     return result;
   }
 
@@ -332,6 +343,8 @@ class _PlayerWidgetState extends State<PlayerWidget> {
         _setSliderWithPlaybackPosition();
       });
     }
+    Provider.of<ApplicationState>(context, listen: false)
+        .setLeadDeviceState(_playerState.index, _sliderPosition);
     return result;
   }
 

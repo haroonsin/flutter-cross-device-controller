@@ -56,6 +56,8 @@ class DefaultFirebaseOptions {
     projectId: 'fir-cross-device-codelab-377d1',
     authDomain: 'fir-cross-device-codelab-377d1.firebaseapp.com',
     storageBucket: 'fir-cross-device-codelab-377d1.appspot.com',
+    databaseURL:
+        'https://fir-cross-device-codelab-377d1-default-rtdb.firebaseio.com/',
   );
 
   static const FirebaseOptions android = FirebaseOptions(
